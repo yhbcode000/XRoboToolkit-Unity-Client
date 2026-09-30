@@ -10,6 +10,9 @@ public class Main : MonoBehaviour
     {
         CrashProbe.Initialize();
         CrashProbe.Breadcrumb("main.awake");
+        // Apply any operator overrides pushed by the pipeline before the UI builds, so the dialogs
+        // open with the right address already in place and no keyboard is needed.
+        RemoteVisionBootstrap.ApplyOperatorOverrides();
         DebugManager.instance.enableRuntimeUI = false;
         Application.logMessageReceived += OnLogMessageReceived;
         XRSettings.eyeTextureResolutionScale = 1.5f;
