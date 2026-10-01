@@ -104,6 +104,72 @@ public partial class UICameraCtrl : MonoBehaviour
         EnsureRecordStatusOverlay();
     }
 
+    /// <summary>
+    /// Auto-listen (added 2026-10-01). The vendor build starts a stream only when someone presses Listen
+    /// and confirms the address dialog, and the headset's soft keyboard can never open on this device
+    /// (display 0 vs 26), so that dialog needs a person present. The operator asked for a build where a
+    /// pushed remote_vision.json starts it instead.
+    ///
+    /// This walks the same path the dialog's Confirm button walks - UpdateVideoSource, then
+    /// RequestCameraStream with the normalised address - and deliberately calls <c>listenBtn.SetOn</c>
+    /// rather than <c>SetOnAndNotify</c>: the notifying variant re-enters OnListenCameraBtn, which would
+    /// reopen the very dialog this exists to avoid. RequestCameraStream itself checks listenBtn.On, so
+    /// the flag must be set first.
+    /// </summary>
+    private void Start()
+    {
+        StartCoroutine(AutoListenWhenRequested());
+    }
+
+    private IEnumerator AutoListenWhenRequested()
+    {
+        // Let the dropdown, the video-source manager and the network layer finish starting up.
+        yield return new WaitForSeconds(2f);
+
+        if (!RemoteVisionBootstrap.AutoListen)
+        {
+            yield break;
+        }
+
+        if (listenBtn == null || listenBtn.On)
+        {
+            Debug.Log("auto-listen: skipped (no listen button, or Listen is already on)");
+            yield break;
+        }
+
+        string source = RemoteVisionAddressStore.LoadLastVideoSource();
+        if (cameraDropdown != null && cameraDropdown.options != null && cameraDropdown.options.Count > 0
+            && string.IsNullOrWhiteSpace(source))
+        {
+            source = cameraDropdown.options[cameraDropdown.value].text;
+        }
+
+        string address = RemoteVisionAddressStore.Load(source);
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            Debug.Log("auto-listen: no stored operator address for '" + source + "'; not starting");
+            yield break;
+        }
+
+        if (cameraDropdown != null && cameraDropdown.options != null && !string.IsNullOrWhiteSpace(source))
+        {
+            for (int i = 0; i < cameraDropdown.options.Count; i++)
+            {
+                if (cameraDropdown.options[i].text == source)
+                {
+                    cameraDropdown.value = i;
+                    cameraDropdown.RefreshShownValue();
+                    break;
+                }
+            }
+            videoSourceManager?.UpdateVideoSource(cameraDropdown.options[cameraDropdown.value].text);
+        }
+
+        listenBtn.SetOn(true);
+        RequestCameraStream(address);
+        Utils.WriteLog(logTag, $"auto-listen: started '{source}' toward {address}");
+    }
+
     private void OnServerReceived(byte[] data)
     {
         // apply protocol

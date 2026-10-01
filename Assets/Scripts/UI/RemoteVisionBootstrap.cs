@@ -26,14 +26,28 @@ public class RemoteVisionOverrides
 {
     public string videoSource;
     public string address;
+    /// <summary>
+    /// When true the app also *starts* the stream, i.e. does what pressing Listen does, without anyone
+    /// touching the headset. The vendor build always requires that press; this field is why the operator
+    /// asked for a custom build.
+    /// </summary>
+    public bool autoListen;
 }
 
 public static class RemoteVisionBootstrap
 {
     public const string FileName = "remote_vision.json";
 
+    /// <summary>
+    /// True when the pushed file asked for the stream to start by itself. Set even when no address is
+    /// present, so a file that only flips this flag still has an effect; always reset first so a stale
+    /// true from an earlier read can never leak into a later one.
+    /// </summary>
+    public static bool AutoListen { get; private set; }
+
     public static void ApplyOperatorOverrides()
     {
+        AutoListen = false;
         string path = Path.Combine(Application.persistentDataPath, FileName);
         try
         {
@@ -45,9 +59,18 @@ public static class RemoteVisionBootstrap
 
             string text = File.ReadAllText(path);
             RemoteVisionOverrides overrides = JsonUtility.FromJson<RemoteVisionOverrides>(text);
-            if (overrides == null || string.IsNullOrWhiteSpace(overrides.address))
+            if (overrides == null)
             {
-                Debug.Log("[RemoteVisionBootstrap] " + path + " has no address; ignoring it");
+                Debug.Log("[RemoteVisionBootstrap] " + path + " did not parse; ignoring it");
+                return;
+            }
+
+            AutoListen = overrides.autoListen;
+
+            if (string.IsNullOrWhiteSpace(overrides.address))
+            {
+                Debug.Log("[RemoteVisionBootstrap] " + path + " has no address; ignoring it"
+                          + " (autoListen=" + AutoListen + ")");
                 return;
             }
 
