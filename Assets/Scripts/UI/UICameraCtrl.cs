@@ -1156,10 +1156,14 @@ public partial class UICameraCtrl : MonoBehaviour
         if (on)
         {
             OpenRecord();
+            // Passthrough is wanted for recording (the vision data IS the camera image) and only then.
+            // Set after OpenRecord so its validation early-returns do not leave see-through enabled.
+            SeeThroughMode.SetRecording(true);
         }
         else
         {
             StopRecord();
+            SeeThroughMode.SetRecording(false);
         }
     }
 

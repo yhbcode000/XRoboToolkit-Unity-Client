@@ -16,7 +16,9 @@ public class Main : MonoBehaviour
         DebugManager.instance.enableRuntimeUI = false;
         Application.logMessageReceived += OnLogMessageReceived;
         XRSettings.eyeTextureResolutionScale = 1.5f;
-        PXR_Manager.EnableVideoSeeThrough = true;
+        // Immersive by default; passthrough only while a recording is running. This used to be a bare
+        // `EnableVideoSeeThrough = true`, which put the headset in passthrough for the whole session.
+        SeeThroughMode.ApplyCurrentOrDefault();
         //Closing the security fence is only effective on B-end devices.
         PXR_Enterprise.SwitchSystemFunction(SystemFunctionSwitchEnum.SFS_SECURITY_ZONE_PERMANENTLY, SwitchEnum.S_OFF);
     }
@@ -41,7 +43,8 @@ public class Main : MonoBehaviour
         if (Application.platform == RuntimePlatform.Android)
         {
             Debug.Log("OnEnable");
-            PXR_Enterprise.OpenVSTCamera();
+            // Was an unconditional OpenVSTCamera(), i.e. passthrough on every enable.
+            SeeThroughMode.ApplyCurrentOrDefault();
         }
     }
 
@@ -67,13 +70,12 @@ public class Main : MonoBehaviour
         }
         else
         {
-            PXR_Manager.EnableVideoSeeThrough = true;
+            // Was `EnableVideoSeeThrough = true` plus an unconditional OpenVSTCamera() on every resume,
+            // which is why taking the headset off and putting it back on always landed in passthrough.
+            SeeThroughMode.ApplyCurrentOrDefault();
             //Closing the security fence is only effective on B-end devices.
             PXR_Enterprise.SwitchSystemFunction(SystemFunctionSwitchEnum.SFS_SECURITY_ZONE_PERMANENTLY,
                 SwitchEnum.S_OFF);
-            bool openVstRes = PXR_Enterprise.OpenVSTCamera();
-
-            Debug.Log("openVstRes:" + openVstRes);
         }
     }
 
