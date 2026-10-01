@@ -56,9 +56,14 @@ public class RemoteCameraWindow : MonoBehaviour
     {
         if (_listening)
         {
+            // Instrumented 2026-10-01: this latch is only cleared in OnDisable, so a session that ended
+            // without deactivating the window would make every later Listen silently do nothing - which is
+            // what "the retry loop ran 27 times and 12345 never opened" looks like from the outside.
+            CrashProbe.Breadcrumb("media_decoder.start_listen", $"already_listening=true port={port}");
             return;
         }
 
+        CrashProbe.Breadcrumb("media_decoder.start_listen", $"already_listening=false port={port}");
         _listening = true;
         _resolutionWidth = width;
         _resolutionHeight = height;
@@ -101,13 +106,40 @@ public class RemoteCameraWindow : MonoBehaviour
     public IEnumerator OnStartListen(int port)
     {
         Debug.Log("StartListen port:" + port);
+        CrashProbe.Breadcrumb("media_decoder.on_start_listen",
+            $"port={port} size={_resolutionWidth}x{_resolutionHeight}");
 
         _texture = new Texture2D(_resolutionWidth, _resolutionHeight, TextureFormat.RGB24, false, false);
         RemoteCameraImage.texture = _texture;
         yield return null;
 
-        MediaDecoder.initialize((int)_texture.GetNativeTexturePtr(), _resolutionWidth, _resolutionHeight);
-        MediaDecoder.startServer(port, false);
+        // Instrumented 2026-10-01: the decoder lives in a Java plugin whose own logging never reached
+        // logcat, so whether these calls ran at all was pure inference. Each one is now a breadcrumb and a
+        // throw is recorded rather than vanishing into the coroutine.
+        try
+        {
+            CrashProbe.Breadcrumb("media_decoder.initialize", "calling");
+            MediaDecoder.initialize((int)_texture.GetNativeTexturePtr(), _resolutionWidth, _resolutionHeight);
+            CrashProbe.Breadcrumb("media_decoder.initialize", "returned");
+        }
+        catch (System.Exception error)
+        {
+            CrashProbe.Breadcrumb("media_decoder.initialize", "threw: " + error, LogType.Error);
+            yield break;
+        }
+
+        try
+        {
+            CrashProbe.Breadcrumb("media_decoder.start_server", $"calling port={port}");
+            MediaDecoder.startServer(port, false);
+            CrashProbe.Breadcrumb("media_decoder.start_server", "returned");
+        }
+        catch (System.Exception error)
+        {
+            CrashProbe.Breadcrumb("media_decoder.start_server", "threw: " + error, LogType.Error);
+            yield break;
+        }
+
         yield return null;
 
         JsonData cameraParam = new JsonData();
