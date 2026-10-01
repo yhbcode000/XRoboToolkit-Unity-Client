@@ -27,6 +27,12 @@ public class RemoteVisionOverrides
     public string videoSource;
     public string address;
     /// <summary>
+    /// Address of the XRoboToolkit PC-Service (the tracking/toolkit host, default port 63901). A separate
+    /// setting from <see cref="address"/>: the app shows "Status: Disconnected" in its Network panel until
+    /// this one is set, and its PC Service field is otherwise just an [Enter] placeholder.
+    /// </summary>
+    public string pcService;
+    /// <summary>
     /// When true the app also *starts* the stream, i.e. does what pressing Listen does, without anyone
     /// touching the headset. The vendor build always requires that press; this field is why the operator
     /// asked for a custom build.
@@ -66,6 +72,24 @@ public static class RemoteVisionBootstrap
             }
 
             AutoListen = overrides.autoListen;
+
+            // Applied independently of the remote-vision address: the PC-Service field is a separate
+            // setting (PlayerPrefs key PCService.Ip.Last) and the headset app shows it as
+            // "Status: Disconnected" until it is set. Measured 2026-10-01 by reading the headset's own
+            // UI: Status was Disconnected and the PC Service field showed only its [Enter] placeholder.
+            if (!string.IsNullOrWhiteSpace(overrides.pcService))
+            {
+                if (PcServiceAddressStore.TrySave(overrides.pcService, out string normalizedPcService))
+                {
+                    PlayerPrefs.Save();
+                    Debug.Log("[RemoteVisionBootstrap] applied PC-Service address " + normalizedPcService);
+                }
+                else
+                {
+                    Debug.LogError("[RemoteVisionBootstrap] PC-Service address rejected by the normaliser: "
+                                   + overrides.pcService);
+                }
+            }
 
             if (string.IsNullOrWhiteSpace(overrides.address))
             {
