@@ -1156,14 +1156,10 @@ public partial class UICameraCtrl : MonoBehaviour
         if (on)
         {
             OpenRecord();
-            // Passthrough is wanted for recording (the vision data IS the camera image) and only then.
-            // Set after OpenRecord so its validation early-returns do not leave see-through enabled.
-            SeeThroughMode.SetRecording(true);
         }
         else
         {
             StopRecord();
-            SeeThroughMode.SetRecording(false);
         }
     }
 
@@ -1221,6 +1217,10 @@ public partial class UICameraCtrl : MonoBehaviour
         }
 
         Toast.Show("Start Record");
+        // Passthrough is wanted for recording and only then - and this is where a recording genuinely
+        // begins, after StartRecord's IsPico4U guard. Hooking OpenRecord() instead would turn passthrough
+        // on while the resolution dialog is merely showing, and a cancelled dialog would leave it on.
+        SeeThroughMode.SetRecording(true);
         Debug.Log("StartRecord:" + width + "," + height + "," + fps + "," + bitrate + "," + onTrackingData);
         CameraHandle.StartCameraPreview(width, height, fps, bitrate, 0,
             (int)PXRCaptureRenderMode.PXRCapture_RenderMode_3D,
@@ -1270,6 +1270,8 @@ public partial class UICameraCtrl : MonoBehaviour
     {
         Debug.Log(this + "StopRecord");
         LogWindow.Info("Stop record");
+        // Back to immersive the moment recording ends, including on an early return path.
+        SeeThroughMode.SetRecording(false);
         if (_writer != null)
         {
             _writer.Close();
