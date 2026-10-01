@@ -162,6 +162,36 @@ class ProjectBuild : Editor
         BuildPipeline.BuildPlayer(GetBuildScenes(), pathRlsI18N, BuildTarget.Android, BuildOptions.None);
     }
 
+    /// <summary>
+    /// Operator build (added 2026-10-01): ONE development APK for the workstation, instead of the four
+    /// that Build() produces (cn/i18n x debug/release). Uses the CN aar, exactly like Build()'s first
+    /// pair, so the resulting APK matches the shipped behaviour. Invoked from the command line with
+    /// -executeMethod ProjectBuild.BuildOperatorAndroid plus productName/outputPath/version/versionCode.
+    ///
+    /// libCopeTmp/ is CI-provided and absent from the repository; ReplaceJarByRegion logs
+    /// "UnityCI JarPath NotFound" and carries on, leaving the committed Assets/Plugins/Android aars
+    /// in place, which is what the shipped APK was built with.
+    /// </summary>
+    static void BuildOperatorAndroid()
+    {
+        RemoveAutoTestScriptingDefineSymbol();
+        ReplaceJarByRegion(false);
+
+        string path = outputPath;
+        PlayerSettings.bundleVersion = version;
+        PlayerSettings.Android.bundleVersionCode = int.Parse(versionCode);
+        PlayerSettings.productName = productName;
+        EditorUserBuildSettings.androidCreateSymbols = AndroidCreateSymbols.Disabled;
+
+        if (path.LastIndexOf(".apk") == -1)
+        {
+            path = @"../bin/localApp.apk";
+        }
+
+        Debug.Log($"UnityOperatorBuild: scenes={GetBuildScenes().Length} path={path}");
+        BuildPipeline.BuildPlayer(GetBuildScenes(), path, BuildTarget.Android, BuildOptions.Development);
+    }
+
     private const string cnJarPath = "libCopeTmp/cn/robotassistant_lib.aar";
     private const string i18NJarPath = "libCopeTmp/i18n/robotassistant_lib.aar";
     private const string dstUnityJarPath = "Assets/Plugins/Android/robotassistant_lib.aar";
