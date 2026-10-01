@@ -915,20 +915,19 @@ public partial class UICameraCtrl : MonoBehaviour
         var data = CameraRequestSerializer.Serialize(customConfig);
 
         // Use network commander
+        //
+        // The vendor's audio negotiation is a two-way handshake: the client asks with AUDIO_SESSION
+        // (carrying an audio request id) and then blocks for an AUDIO_CONFIG reply before it proceeds.
+        // A sender that does not answer makes the client give up and drop the control connection before
+        // the video ever starts - measured 2026-10-01, the sender logged control_closed immediately
+        // after reading AUDIO_SESSION and OPEN_CAMERA was never reached.
+        //
+        // This pipeline deliberately carries no audio (see docs/pico-data-pipeline.md), so skip the
+        // negotiation entirely and send the video request straight away. acceptAudioPortConfig is left
+        // false so an unsolicited AUDIO_CONFIG cannot re-enable the audio downlink later.
         clientProtocolBuffer.Clear();
-        acceptAudioPortConfig = true;
-        operatorControlClient.SendCommand(
-            NetworkCommand.AUDIO_SESSION,
-            Encoding.ASCII.GetBytes(currentAudioRequestId));
+        acceptAudioPortConfig = false;
         operatorControlClient.SendCommand(NetworkCommand.OPEN_CAMERA, data);
-
-        float ackDeadline = Time.realtimeSinceStartup + AudioPortAckTimeoutSeconds;
-        while (sessionId == audioSessionId &&
-               !audioPortAckReceived &&
-               Time.realtimeSinceStartup < ackDeadline)
-        {
-            yield return null;
-        }
 
         if (sessionId == audioSessionId)
         {
